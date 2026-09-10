@@ -19,6 +19,7 @@ ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:3638d9a6fe4030bd716be989438248074
 # Keep in sync with .github/actions/setup-node-env/action.yml bun-version.
 # To update: docker buildx imagetools inspect docker.io/oven/bun:<version> and use the manifest-list digest.
 ARG OPENCLAW_BUN_IMAGE="docker.io/oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6"
+ARG NPM_CONFIG_REGISTRY="https://registry.npmmirror.com"
 
 # Base images are pinned to SHA256 digests for reproducible builds.
 # Dependabot refreshes these blessed digests; release builds consume the
@@ -66,12 +67,25 @@ RUN mkdir -p /out/packages "/out/${OPENCLAW_BUNDLED_PLUGIN_DIR}" && \
 # never has to rename a dependency directory inherited from an OverlayFS layer.
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS dependency-inputs
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
+ARG NPM_CONFIG_REGISTRY
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY} \
+    npm_config_registry=${NPM_CONFIG_REGISTRY} \
+    COREPACK_NPM_REGISTRY=${NPM_CONFIG_REGISTRY} \
+    HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    http_proxy=${HTTP_PROXY} \
+    https_proxy=${HTTPS_PROXY}
 
-RUN corepack enable
+RUN corepack enable && pnpm config set registry "${NPM_CONFIG_REGISTRY}"
 
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN if [ -n "${NPM_CONFIG_REGISTRY}" ] && [ "${NPM_CONFIG_REGISTRY}" != "https://registry.npmjs.org" ]; then \
+      sed -i "s#https://registry.npmjs.org/#${NPM_CONFIG_REGISTRY}/#g" pnpm-lock.yaml; \
+    fi
 COPY node-version.mjs ./
 COPY openclaw.mjs ./
 COPY ui/package.json ./ui/package.json
