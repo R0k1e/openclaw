@@ -45,6 +45,21 @@ function dedupeSpecs(specs: string[]) {
   return [...new Set(normalized)];
 }
 
+function omitUnpublishedCandidateBaseline(args: Map<string, string>, specs: string[]) {
+  if (args.get("candidate-published") !== "false") {
+    return specs;
+  }
+  const candidateVersion = args.get("candidate-version");
+  if (!candidateVersion) {
+    return specs;
+  }
+  const candidateSpec = normalizeUpgradeSurvivorBaselineSpec(candidateVersion);
+  if (!candidateSpec) {
+    throw new Error(`invalid candidate version: ${candidateVersion}`);
+  }
+  return specs.filter((spec) => spec !== candidateSpec);
+}
+
 function parsePositiveInteger(value: unknown, label: string) {
   const text = scalarText(value).trim();
   if (!/^[1-9]\d*$/u.test(text)) {
@@ -146,7 +161,7 @@ function resolveReleaseHistory(args: Map<string, string>) {
   if (preDateRelease) {
     versions.push(preDateRelease.version);
   }
-  return dedupeSpecs(versions);
+  return omitUnpublishedCandidateBaseline(args, dedupeSpecs(versions));
 }
 
 /**
@@ -162,7 +177,10 @@ function resolveLastStable(args: Map<string, string>, count: number) {
   }
   const publishedVersions = readPublishedVersions(args.get("npm-versions-json"));
   const releases = readStableReleases(releasesJson, publishedVersions);
-  return dedupeSpecs(releases.slice(0, count).map((release) => release.version));
+  return omitUnpublishedCandidateBaseline(
+    args,
+    dedupeSpecs(releases.slice(0, count).map((release) => release.version)),
+  );
 }
 
 /**
@@ -175,10 +193,13 @@ function resolveAllSince(args: Map<string, string>, minimumVersion: string) {
   }
   const publishedVersions = readPublishedVersions(args.get("npm-versions-json"));
   const releases = readStableReleases(releasesJson, publishedVersions);
-  return dedupeSpecs(
-    releases
-      .map((release) => release.version)
-      .filter((version) => compareStableVersions(version, minimumVersion) >= 0),
+  return omitUnpublishedCandidateBaseline(
+    args,
+    dedupeSpecs(
+      releases
+        .map((release) => release.version)
+        .filter((version) => compareStableVersions(version, minimumVersion) >= 0),
+    ),
   );
 }
 
@@ -215,12 +236,15 @@ function resolveSupportedLines(args: Map<string, string>) {
   ) {
     throw new Error("npm extended-stable must name a published stable version when present");
   }
-  return dedupeSpecs([
-    latest,
-    previous,
-    ...(typeof extended === "string" ? [extended] : []),
-    OLDEST_SUPPORTED_UPGRADE_SURVIVOR_BASELINE,
-  ]);
+  return omitUnpublishedCandidateBaseline(
+    args,
+    dedupeSpecs([
+      latest,
+      previous,
+      ...(typeof extended === "string" ? [extended] : []),
+      OLDEST_SUPPORTED_UPGRADE_SURVIVOR_BASELINE,
+    ]),
+  );
 }
 
 /**

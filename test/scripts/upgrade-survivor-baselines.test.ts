@@ -270,6 +270,24 @@ console.log(JSON.stringify(process.argv[4] === "dist-tags"
     },
   );
 
+  it("omits the unpublished candidate version from expanded supported lines", () => {
+    withJsonFixture("tags.json", { latest: "2026.9.3" }, (tagsFile) => {
+      withJsonFixture("versions.json", ["2026.6.34", "2026.9.2", "2026.9.3"], (versionsFile) => {
+        expect(
+          resolveBaselines(
+            new Map([
+              ["requested", "supported-lines"],
+              ["candidate-version", "2026.9.3"],
+              ["candidate-published", "false"],
+              ["npm-dist-tags-json", tagsFile],
+              ["npm-versions-json", versionsFile],
+            ]),
+          ),
+        ).toEqual(["openclaw@2026.9.2", "openclaw@2026.6.34"]);
+      });
+    });
+  });
+
   it.each([
     {
       tags: {},
