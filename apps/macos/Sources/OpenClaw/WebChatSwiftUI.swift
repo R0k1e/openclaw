@@ -1499,6 +1499,8 @@ final class WebChatSwiftUIWindowController: NSObject, NSWindowDelegate {
             self.nativePresentation.inspection = .init(value: inspection)
         case .session:
             break
+        case .liveVoice:
+            throw OpenClawNativeActionError("Start Talk Mode from the primary Gateway chat on this Mac.")
         }
         self.show()
     }
